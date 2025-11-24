@@ -1,0 +1,80 @@
+services:
+  app:
+    build:
+      context: ./.docker
+      dockerfile: Dockerfile
+    environment:
+      COMPOSER_MEMORY_LIMIT: -1
+      XDEBUG_ENABLED: ${XDEBUG_ENABLED:-false}
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --silent --fail http://localhost || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  fe:
+    build:
+      context: ./.docker/node
+      dockerfile: Dockerfile.fe
+    platform: linux/amd64
+    environment:
+      TZ: ${APP_TIMEZONE:-UTC}
+    volumes:
+      - ./:/var/www/html
+      - /var/www/html/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "node --version" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-laravel}
+      POSTGRES_USER: ${DB_USERNAME:-laravel}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      TZ: ${APP_TIMEZONE:-UTC}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./:/var/www/html
+      - db16:/var/lib/postgresql/data:rw
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-laravel}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4.2-bookworm
+    environment:
+      TZ: ${APP_TIMEZONE:-UTC}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - redis7.4:/data
+
+volumes:
+  redis7.4:
+  db16:
