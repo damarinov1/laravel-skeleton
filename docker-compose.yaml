@@ -1,7 +1,7 @@
 services:
   app:
     build:
-      context: ./.docker
+      context: .docker
       dockerfile: Dockerfile
     environment:
       COMPOSER_MEMORY_LIMIT: -1
@@ -23,20 +23,16 @@ services:
       retries: 3
 
   fe:
-    build:
-      context: ./.docker/node
-      dockerfile: Dockerfile.fe
-    platform: linux/amd64
+    image: node:22-bookworm
+    working_dir: /var/www/html
     environment:
       TZ: ${APP_TIMEZONE:-UTC}
     volumes:
       - ./:/var/www/html
-      - /var/www/html/node_modules
+    entrypoint: ./.docker/config/node/entrypoint.sh
+    user: "33:33"
     ports:
       - "5173:5173"
-    depends_on:
-      app:
-        condition: service_started
     healthcheck:
       test: [ "CMD-SHELL", "node --version" ]
       interval: 30s
@@ -44,7 +40,7 @@ services:
       retries: 3
 
   db:
-    image: postgres:16-bookworm
+    image: postgres:17.7-bookworm
     environment:
       POSTGRES_DB: ${DB_DATABASE:-laravel}
       POSTGRES_USER: ${DB_USERNAME:-laravel}
@@ -53,8 +49,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./:/var/www/html
-      - db16:/var/lib/postgresql/data:rw
+      - db17.7:/var/lib/postgresql/data:rw
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-laravel}" ]
       interval: 10s
@@ -62,7 +57,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7.4.2-bookworm
+    image: redis:8.4-bookworm
     environment:
       TZ: ${APP_TIMEZONE:-UTC}
     ports:
@@ -72,9 +67,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    volumes:
-      - redis7.4:/data
-
+  mailcatcher:
+    image: dockage/mailcatcher:0.9
+    environment:
+      TZ: UTC
+    ports:
+      - "1080:1080"
+    healthcheck:
+      test: [ "CMD", "echo", "-n", "EHLO healthcheck", "|", "nc", "localhost", "25" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 volumes:
-  redis7.4:
-  db16:
+  db17.7:
