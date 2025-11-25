@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-yarn install
+npm install 
 
-exec yarn run dev --host
+exec npm run dev --host
